@@ -64,10 +64,12 @@ int main() {
   Listen(serverfd, 10);
   while (1) {
     len = sizeof(clientfd);
-    Accept(serverfd, (struct sockaddr *) &clientaddr, &len);
+    clientfd = Accept(serverfd, (struct sockaddr *) &clientaddr, &len);
     printf("connection from %s, port %d\n",
 	   inet_ntop(AF_INET, &clientaddr.sin_addr, buff, sizeof(buff)),
 	   ntohs(clientaddr.sin_port));
+    recv(clientfd, buff, sizeof(buff), 0);
+    printf("received request: %s", buff);
     close(clientfd);
   }
 }
