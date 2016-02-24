@@ -35,4 +35,12 @@ control flow:
   then return from overall control flow, since nothing after that matters
 
 
+current restrictions/assumptions:
+- use C!
+- HTTP/1.0
+- assuming client is always sends the initial line 'GET / HTTP/1.0'
+  and so server will always succeed
+- server does not send any content
+- don't worry about performance
+
 */

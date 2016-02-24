@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include "util.h"
+#include "response.h"
 
 #define MAXLEN 200
 #define MAX_MSG_LEN 1024
@@ -103,11 +105,12 @@ void *basic_routine(void *arg) {
   n = Recv(clientfd, buf, sizeof(buf), 0);
   
   // parse initial request line (assuming correct)
-  if 
-  
   // write back initial request line
   // write back header line with time
   // write back content of requested file 1024 bytes at a time
+  send_response(clientfd, OK);
+  close(clientfd);
+  return NULL;
 }
 
 
@@ -129,7 +132,7 @@ int main() {
     printf("connection from %s, port %d\n",
 	   inet_ntop(AF_INET, &clientaddr.sin_addr, buff, sizeof(buff)),
 	   ntohs(clientaddr.sin_port));
-    pthread_create(&tid, NULL, str_echo_routine, (void *)clientfd);
+    pthread_create(&tid, NULL, basic_routine, (void *)clientfd);
     //str_echo(clientfd);
     //close(clientfd);
   }

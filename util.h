@@ -16,3 +16,7 @@
 #define TXT  1
 #define JPG  2
 #define GIF  3
+
+/* debugging */
+#define DEBUG 1
+#define DEBUG_PRINT if (DEBUG) printf
