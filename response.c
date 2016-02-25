@@ -38,7 +38,7 @@ void send_initial(int clientfd, int status) {
   // Later, should account for possible error in system calls and re-send
   // a 500 response, but send at most one.
   // This will require keeping count per thread, which might be annoying
-  // synchronization-wise.
+  // synchronization-wise... Actually, no, not at all. Yay.
 }
 
 void send_date_header(int clientfd) {

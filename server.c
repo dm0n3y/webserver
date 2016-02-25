@@ -59,30 +59,30 @@ int Recv(int socket, void *buffer, size_t length, int flags) {
 }
 
 int new_listening_socket() {
-  int serverfd;
+  int listenfd;
   struct sockaddr_in serveraddr;
   
   memset(&serveraddr, 0, sizeof(serveraddr));
   serveraddr.sin_family = AF_INET;
-  serveraddr.sin_port = htons(8998);
+  serveraddr.sin_port = htons(PORT);
   serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  serverfd = Socket(AF_INET, SOCK_STREAM, 0);
-  Bind(serverfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
-  Listen(serverfd, 10);
-  return serverfd;
+  listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+  Bind(listenfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
+  Listen(listenfd, 10);
+  return listenfd;
 }
 
 
-void str_echo(int clientfd) {
+void str_echo(int connfd) {
   ssize_t n;
   char buf[MAXLEN];
   char quit[4] = {'q','u','i','t'};
 
-  while ( (n = read(clientfd, buf, sizeof(buf))) > 0 ) {
+  while ( (n = read(connfd, buf, sizeof(buf))) > 0 ) {
     if (memcmp(buf,quit,4) == 0)
-      close(clientfd);
-    write(clientfd, buf, n);
+      close(connfd);
+    write(connfd, buf, n);
   }
 }
 
@@ -95,21 +95,21 @@ void *str_echo_routine(void *arg) {
 
 
 void *basic_routine(void *arg) {
-  int clientfd = (int)arg;
+  int connfd = (int)arg;
   ssize_t n;  // length of received msg
   char buf[MAX_MSG_LEN];
   
   pthread_detach(pthread_self());
 
-  // read in clientfd request
-  n = Recv(clientfd, buf, sizeof(buf), 0);
+  // read in connfd request
+  n = Recv(connfd, buf, sizeof(buf), 0);
   
   // parse initial request line (assuming correct)
   // write back initial request line
   // write back header line with time
   // write back content of requested file 1024 bytes at a time
-  send_response(clientfd, OK);
-  close(clientfd);
+  send_response(connfd, OK);
+  close(connfd);
   return NULL;
 }
 
@@ -118,22 +118,22 @@ int main() {
 
   pthread_t tid; // currently does not keep track of all created tids
   
-  int serverfd, clientfd;
+  int listenfd, connfd;
   struct sockaddr_in /*serveraddr,*/ clientaddr;  
   socklen_t clientlen;
   char buff[MAXLEN];
 
-  serverfd = new_listening_socket();
+  listenfd = new_listening_socket();
   //memset(&clientaddr, 0, sizeof(clientaddr));
   
   while (1) {
     clientlen = sizeof(clientaddr);
-    clientfd = Accept(serverfd, (struct sockaddr *) &clientaddr, &clientlen);
+    connfd = Accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen);
     printf("connection from %s, port %d\n",
 	   inet_ntop(AF_INET, &clientaddr.sin_addr, buff, sizeof(buff)),
 	   ntohs(clientaddr.sin_port));
-    pthread_create(&tid, NULL, basic_routine, (void *)clientfd);
-    //str_echo(clientfd);
-    //close(clientfd);
+    pthread_create(&tid, NULL, basic_routine, (void *)connfd);
+    //str_echo(connfd);
+    //close(connfd);
   }
 }
