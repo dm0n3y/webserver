@@ -10,7 +10,7 @@
 #include "util.h"
 #include "response.h"
 
-#define MAXLEN 200
+#define MAXLEN 8192
 #define MAX_MSG_LEN 1024
 
 /* I borrow Stevens et al's convention of wrapping error handling for
@@ -75,14 +75,15 @@ int new_listening_socket() {
 
 
 void str_echo(int connfd) {
-  ssize_t n;
+  size_t n;
   char buf[MAXLEN];
   char quit[4] = {'q','u','i','t'};
 
   while ( (n = read(connfd, buf, sizeof(buf))) > 0 ) {
     if (memcmp(buf,quit,4) == 0)
       close(connfd);
-    write(connfd, buf, n);
+    DEBUG_PRINT("%s",buf);
+    send(connfd, buf, n, 0);
   }
 }
 
@@ -108,7 +109,7 @@ void *basic_routine(void *arg) {
   // write back initial request line
   // write back header line with time
   // write back content of requested file 1024 bytes at a time
-  send_response(connfd, OK);
+  send_response(connfd, OK_);
   close(connfd);
   return NULL;
 }
@@ -132,8 +133,8 @@ int main() {
     printf("connection from %s, port %d\n",
 	   inet_ntop(AF_INET, &clientaddr.sin_addr, buff, sizeof(buff)),
 	   ntohs(clientaddr.sin_port));
-    pthread_create(&tid, NULL, basic_routine, (void *)connfd);
-    //str_echo(connfd);
-    //close(connfd);
+    //pthread_create(&tid, NULL, basic_routine, (void *)connfd);
+    str_echo(connfd);
+    close(connfd);
   }
 }

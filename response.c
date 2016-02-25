@@ -15,17 +15,17 @@
 
 char *status_to_phrase(int status) {
   switch (status) {
-    case OK:
+    case OK_:
       return "OK";
-    case BAD_REQUEST:
+    case BAD_REQUEST_:
       return "Bad Request";
-    case FORBIDDEN:
+    case FORBIDDEN_:
       return "Forbidden";
-    case NOT_FOUND:
+    case NOT_FOUND_:
       return "Not Found";
-    case REQUEST_TOO_LARGE:
+    case REQUEST_TOO_LARGE_:
       return "Request Entity Too Large";
-    case SERVER_ERR:
+    case SERVER_ERR_:
     default:
       return "Internal Server Error";
   }
