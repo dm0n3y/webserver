@@ -64,12 +64,12 @@ int new_listening_socket() {
   
   memset(&serveraddr, 0, sizeof(serveraddr));
   serveraddr.sin_family = AF_INET;
-  serveraddr.sin_port = htons(PORT);
+  serveraddr.sin_port = htons(PORT_);
   serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   listenfd = Socket(AF_INET, SOCK_STREAM, 0);
   Bind(listenfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
-  Listen(listenfd, 10);
+  Listen(listenfd, BACKLOG_);
   return listenfd;
 }
 
