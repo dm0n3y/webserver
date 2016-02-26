@@ -2,17 +2,25 @@
 #include <stdio.h>
 #include <pthread.h>
 #include "queue.h"
+#include "util.h"
 
 void queue_init(queue_t *q) {
+
+  /*
+   * Come back and rewrite this as nested ifs.
+   */
+  
   node_t *dummy = malloc(sizeof(node_t));
   pthread_mutex_t *hlock = malloc(sizeof(pthread_mutex_t));
   pthread_mutex_t *tlock = malloc(sizeof(pthread_mutex_t));
+  pthread_mutex_t *slock = malloc(sizeof(pthread_mutex_t));
   pthread_cond_t *nonempty = malloc(sizeof(pthread_cond_t));
   //pthread_mutex_t *hlock, *tlock;
   if ( pthread_mutex_init(hlock,NULL) != 0 ||
-       pthread_mutex_init(tlock,NULL) != 0 )
+       pthread_mutex_init(tlock,NULL) != 0 ||
+       pthread_mutex_init(slock,NULL) )
   {
-    free(dummy); free(hlock); free(tlock); free(nonempty);
+    free(dummy); free(hlock); free(tlock); free(slock); free(nonempty);
     fprintf(stderr, "Could not initialize mutex locks for queue!");
     exit(1);
   }
@@ -21,9 +29,11 @@ void queue_init(queue_t *q) {
   q->head = (q->tail = dummy);
   q->hlock = hlock;
   q->tlock = tlock;
+  q->slock = slock;
   q->nonempty = nonempty;
-
   pthread_cond_init(q->nonempty, NULL);
+
+  q->size = 0;
 }
 
 void queue_destroy(queue_t *q) {
@@ -34,13 +44,13 @@ void queue_destroy(queue_t *q) {
     free(node);
     node = next;
   }
-  free(q->hlock); free(q->tlock);
+  free(q->hlock); free(q->tlock); free(q->slock);
   free(q->nonempty);
   free(q);
 }
 
 void enqueue(queue_t *q, int fd) {
-  printf("enqueue\n");  
+  //DEBUG_PRINT("enqueue\n");
   node_t *node = malloc(sizeof(node_t));
   node->fd = fd;
   node->next = NULL;
@@ -48,6 +58,7 @@ void enqueue(queue_t *q, int fd) {
   pthread_mutex_lock(q->tlock);
   q->tail->next = node;
   q->tail = node;
+  DEBUG_PRINT("Enqueued node %p { fd = %d }\n",node,fd);
   pthread_mutex_unlock(q->tlock);
   pthread_cond_signal(q->nonempty);
 }
@@ -63,19 +74,22 @@ void dequeue(queue_t *q, int *fd) {
     return -1;
   }
   */
-  printf("dequeue %d: before if\n", ((int)fd)%1000);  
-  if (new_dummy == NULL) {
-    printf("dequeue %d: inside if\n", ((int)fd)%1000);
+  DEBUG_PRINT("dequeue %d: before while\n", ((int)fd)%1000);  
+  while (new_dummy == NULL) {
+    DEBUG_PRINT("dequeue %d: inside while\n", ((int)fd)%1000);
     pthread_cond_wait(q->nonempty, q->hlock);
+
+    dummy = q->head;
     new_dummy = dummy->next;
   }
-  printf("dequeue %d: after if\n", ((int)fd)%1000);
+  DEBUG_PRINT("dequeue %d: after while\n", ((int)fd)%1000);
+  DEBUG_PRINT("About to dequeue node %p { fd = %d }\n",new_dummy,new_dummy->fd);
   
   *fd = new_dummy->fd;
   pthread_mutex_unlock(q->hlock);
-  printf("dequeue %d: before free\n", ((int)fd)%1000);
+  DEBUG_PRINT("dequeue %d: before free\n", ((int)fd)%1000);
   free(dummy);
-  printf("dequeue %d: after free\n", ((int)fd)%1000);
+  DEBUG_PRINT("dequeue %d: after free\n", ((int)fd)%1000);
   //return 0;
 }
 
@@ -88,7 +102,7 @@ void *test_enqueue(void *arg) {
   //pthread_detach(pthread_self());
   iq_pair *iq = (iq_pair *)arg;
   enqueue(iq->q, iq->i);
-  printf("Enqueued %d\n",iq->i);
+  DEBUG_PRINT("Enqueued %d\n",iq->i);
   return NULL;
 }
 
@@ -96,7 +110,7 @@ void *test_dequeue(void *arg) {
   queue_t *q = (queue_t *)arg;
   int fd;
   dequeue(q,&fd);
-  printf("Dequeued %d (%d)\n",fd,((int)&fd)%1000);
+  DEBUG_PRINT("Dequeued %d (%d)\n",fd,((int)&fd)%1000);
   return NULL;
 }
 

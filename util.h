@@ -1,4 +1,4 @@
-/* System call parameters */
+/* System parameters */
 #define PORT_    8998
 #define BACKLOG_ 10
 

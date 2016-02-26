@@ -9,9 +9,14 @@ typedef struct node_t_ {
 typedef struct queue_t_ {
   node_t *head;
   node_t *tail;
+  int size;
+
   pthread_mutex_t *hlock;
   pthread_mutex_t *tlock;
+  pthread_mutex_t *slock;
+
   pthread_cond_t *nonempty;
+  
 } queue_t;
 
 void queue_init(queue_t *q);
