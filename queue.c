@@ -6,35 +6,50 @@
 #include "util.h"
 
 void queue_init(queue_t *q) {
+  node_t *dummy;
+  pthread_mutex_t *hlock, *tlock;
+  pthread_cond_t *nonempty;
 
-  /*
-   * Come back and rewrite this as nested ifs.
-   */
-  
-  node_t *dummy = malloc(sizeof(node_t));
-  pthread_mutex_t *hlock = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_t *tlock = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_t *slock = malloc(sizeof(pthread_mutex_t));
-  pthread_cond_t *nonempty = malloc(sizeof(pthread_cond_t));
-  //pthread_mutex_t *hlock, *tlock;
+  if ( !(dummy = malloc(sizeof(node_t))) ) {
+    fprintf(stderr, "Out of memory!\n");
+    goto exit;
+  }
+  if ( !(hlock = malloc(sizeof(pthread_mutex_t))) ) {
+    fprintf(stderr, "Out of memory!\n");
+    goto cleanup_dummy;
+  }
+  if ( !(tlock = malloc(sizeof(pthread_mutex_t))) ) {
+    fprintf(stderr, "Out of memory!\n");
+    goto cleanup_hlock;
+  }
+  if ( !(nonempty = malloc(sizeof(pthread_cond_t))) ) {
+    fprintf(stderr, "Out of memory!\n");    
+    goto cleanup_tlock;
+  }
   if ( pthread_mutex_init(hlock,NULL) != 0 ||
-       pthread_mutex_init(tlock,NULL) != 0 ||
-       pthread_mutex_init(slock,NULL) )
-  {
-    free(dummy); free(hlock); free(tlock); free(slock); free(nonempty);
-    fprintf(stderr, "Could not initialize mutex locks for queue!");
-    exit(1);
+       pthread_mutex_init(tlock,NULL) != 0  ) {
+    fprintf(stderr, "Could not initialize mutex locks for queue!\n");
+    goto cleanup_nonempty;
   }
 
   dummy->next = NULL;
   q->head = (q->tail = dummy);
   q->hlock = hlock;
   q->tlock = tlock;
-  q->slock = slock;
   q->nonempty = nonempty;
   pthread_cond_init(q->nonempty, NULL);
+  return;
 
-  q->size = 0;
+ cleanup_nonempty:
+  free(nonempty);
+ cleanup_tlock:
+  free(tlock);
+ cleanup_hlock:
+  free(hlock);
+ cleanup_dummy:
+  free(dummy);
+ exit:
+  exit(1);
 }
 
 void queue_destroy(queue_t *q) {
@@ -45,59 +60,52 @@ void queue_destroy(queue_t *q) {
     free(node);
     node = next;
   }
-  free(q->hlock); free(q->tlock); free(q->slock);
+  free(q->hlock); free(q->tlock);
   free(q->nonempty);
   free(q);
 }
 
 void enqueue(queue_t *q, int fd) {
-  //DEBUG_PRINT("enqueue\n");
+  /* Construct new node */
   node_t *node = malloc(sizeof(node_t));
   node->fd = fd;
   node->next = NULL;
 
   pthread_mutex_lock(q->tlock);
-  q->tail->next = node;
-  q->tail = node;
-  DEBUG_PRINT("\t\t\t\t\t| enqueued %p { fd = %d }\n\t\t\t\t\t|    dummy %p { fd = %d }\n",node,fd,q->head,q->head->fd);
-  pthread_cond_signal(q->nonempty);
+  {
+    /* Add node to end of queue */
+    q->tail->next = node;
+    q->tail = node;
+    /* Wake any sleeping worker threads */
+    pthread_cond_signal(q->nonempty);
+  }
   pthread_mutex_unlock(q->tlock);
 }
 
 void dequeue(queue_t *q, int *fd) {
-  node_t *dummy, *new_dummy;
+  node_t *old_head;
   pthread_mutex_lock(q->hlock);
-  //dummy = q->head;
-  //new_dummy = dummy->next;
-  /*
-  if (new_head == NULL) {
-    pthread_mutex_unlock(q->hlock);
-    return -1;
-  }
-  */
-  DEBUG_PRINT("[dq %p] before loop (%p,%p)\n", fd,dummy,new_dummy);//((int)fd)%1000);  
-  while (q->head->next == NULL) {
-    //    DEBUG_PRINT("[dq %p] inside loop, dummy: node %p { fd = %d }\n", fd, q->head, q->head->fd);//((int)fd)%1000);
-    pthread_cond_wait(q->nonempty, q->hlock);
+  {
+    /* Wait until signaled that queue is nonempty.
+     * Need while loop in case a new thread manages to
+     * steal the queue element after the waiting thread
+     * is signaled, but before it can reacquire hlock. */
+    while (q->head->next == NULL) // i.e. q is empty
+      pthread_cond_wait(q->nonempty, q->hlock);
 
-    //dummy = q->head;
-    //new_dummy = dummy->next;
-    //DEBUG_PRINT("[dq %p] inside loop (%p,%p)\n", fd,dummy,new_dummy);
+    /* Store dequeued value and update dummy head */
+    old_head = q->head;
+    *fd = old_head->next->fd;
+    q->head = q->head->next;
   }
-  //DEBUG_PRINT("[dq %p] after while\n", fd);//((int)fd)%1000);
-  dummy = q->head;
-  new_dummy = dummy->next;
-  DEBUG_PRINT("[dq %p] ready    %p { fd = %d }\n",fd,new_dummy,new_dummy->fd);
-  
-  *fd = new_dummy->fd;
-  q->head = new_dummy;
   pthread_mutex_unlock(q->hlock);
-  //DEBUG_PRINT("[dq %p] before free\n", fd);//((int)fd)%1000);
-  free(dummy);
-  //DEBUG_PRINT("[dq %p] after free\n", fd);//((int)fd)%1000);
-  DEBUG_PRINT("[dq %p] dequeued %p { fd = %d }\n",fd,new_dummy,new_dummy->fd);
-  //return 0;
+  free(old_head);
 }
+
+
+
+
+/* Debugging */
 
 typedef struct iq_pair_ {
   int i;
@@ -105,10 +113,8 @@ typedef struct iq_pair_ {
 } iq_pair;
 
 void *test_enqueue(void *arg) {
-  //pthread_detach(pthread_self());
   iq_pair *iq = (iq_pair *)arg;
   enqueue(iq->q, iq->i);
-  //  DEBUG_PRINT("Enqueued %d\n",iq->i);
   return NULL;
 }
 
@@ -116,8 +122,6 @@ void *test_dequeue(void *arg) {
   queue_t *q = (queue_t *)arg;
   int fd;
   dequeue(q,&fd);
-  //  DEBUG_PRINT("Dequeued %d (%d)\n",fd,((int)&fd)%1000);
-  printf("[dq %p] about to return\n",&fd);
   return NULL;
 }
 
