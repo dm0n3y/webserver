@@ -125,6 +125,7 @@ void *test_dequeue(void *arg) {
   return NULL;
 }
 
+/*
 int main() {
   queue_t *q = malloc(sizeof(queue_t));
   queue_init(q);
@@ -182,3 +183,4 @@ int main() {
   queue_destroy(q);
   free(q);
 }
+*/

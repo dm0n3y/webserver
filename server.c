@@ -2,13 +2,16 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "util.h"
-#include "response.h"
+#include "queue.h"
+#include "http.h"
 
 #define MAXLEN 8192
 #define MAX_MSG_LEN 1024
@@ -96,7 +99,7 @@ void *str_echo_routine(void *arg) {
   return NULL;
 }
 
-
+/*
 void *basic_routine(void *arg) {
   int connfd = (int)arg;
   ssize_t n;  // length of received msg
@@ -115,37 +118,108 @@ void *basic_routine(void *arg) {
   close(connfd);
   return NULL;
 }
+*/
 
 void *worker_routine(void *arg) {
   pthread_detach(pthread_self());
   
-  int connfd;
-  char msg[MAXMSG];
+  int connfd, file, len, recv_bytes;
+  char msg[MAXMSG], buf[1024], c;
+  status_t stat;
   http_request_t *request = malloc(sizeof(http_request_t));
   queue_t *q = (queue_t *)arg;
   
   while (1) {
+  loopstart:
     dequeue(q,&connfd);
-    recv(connfd,msg,MAXMSG,MSG_WAITALL);
-    parse_request(msg,request);
+    memset(msg,0,MAXMSG); recv_bytes = 0;
+    while (!strnstr(msg,"\r\n\r\n",MAXMSG) &&
+	   !strnstr(msg,"\n\n"    ,MAXMSG) &&
+           recv_bytes < MAXMSG) {
+      /* If msg too large, skip parsing and send response */
+      /*
+      if (recv_bytes >= MAXMSG) {
+	
+	stat = REQUEST_TOO_LARGE_;
+	goto send;
+      }
+      */
+      /*len = recv(connfd,msg+recv_bytes,MAXMSG-recv_bytes,0); */
+      /* If client has closed, close and move on */
+      /*
+      if (len == 0) {
+	close(connfd);
+	goto loopstart;
+	}*/
+      /* If socket has timed out, skip parsing and send response */
+      /*
+      if (len < 0) {
+	perror("recv");
+	stat = REQUEST_TIMEOUT_;
+	goto send;
+	} */
 
-    if (request->method == GET) {
       
+      /* If error or time out, close and move on */
+      if ( (len = recv(connfd,msg+recv_bytes,MAXMSG-recv_bytes,0)) <= 0 ) {
+	//if (len < 0) perror("recv");
+	close(connfd);
+	goto loopstart;
+      }
+      recv_bytes += len;
     }
+    //printf("Received: %s\n",msg);
+    //for (i = 0; i < len; i++) putchar(msg[i]); //putchar('\n');
+    stat = parse_request(msg,request);
+    //printf("Parse result: %d\n",stat);
+
+  send:
+    /* Send initial line */
+    // ADD REASON PHRASE
+    len = sprintf(msg, "HTTP/1.%d %d\r\n",request->httpver,stat);
+    send(connfd,msg,len,0);
+
+    /* Send header lines */
+    time_t now;
+    time(&now);
+    len = strftime(buf,1024,
+		   "Date: %a, %d %b %Y %H:%M:%S GMT\r\n",gmtime(&now));
+    send(connfd,buf,len,0);
+
+    /* Send empty line */
+    send(connfd,"\r\n",2,0);
+    
+    // if get, send file  [ BUT NOT IF PARSE RETURNED ERROR! ]
+    if (stat == OK_ && request->method == GET) {     
+      if ( (file = open(request->path, O_RDONLY)) < 0 ) {
+	perror("open");
+	printf("%s\n",request->path);
+      }
+      while ( (len = read(file,msg,MAXMSG)) > 0 )
+	// ADD ERROR HANDLING
+	send(connfd,msg,len,0);
+    }
+
+    if (request->httpver == 0)
+      close(connfd);
+    else
+      enqueue(q,connfd);
   }
 }
 
 
 int main() {
 
+  char buf[1024]; // for DEBUG_PRINT in loop
+  
   int listfd, connfd, i;
   queue_t *connections;
-  pthread_t workers[NUM_WORKERS];
-
-  // Not sure if I need to access these later.
-  // Remove if not.
+  pthread_t workers[NUM_WORKERS];  
   struct sockaddr_in clientaddr;
   socklen_t clientlen;
+  struct timeval timeout;
+  timeout.tv_sec  = 1;
+  timeout.tv_usec = 0;
 
   /* Initalize connections queue */
   connections = malloc(sizeof(queue_t));
@@ -161,13 +235,18 @@ int main() {
 
   while(1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen);
+    connfd = Accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
+    setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
+	       (void *)&timeout, sizeof(timeout));
     DEBUG_PRINT("connection from %s, port %d\n",
 	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
 	        ntohs(clientaddr.sin_port));
-    enqueue(q,connfd);
+    enqueue(connections,connfd);
   }
 
+  queue_destroy(connections);
+  free(connections);
+  
   /*
     Ah, so I might need two queues:
     - first is simply to accept incoming connections
@@ -195,13 +274,9 @@ int main() {
      
   */
 
-
-
-  queue_destroy(q);
-  free(q);
   
   
-  
+  /*
   int listenfd, connfd;
   struct sockaddr_in clientaddr;  
   socklen_t clientlen;
@@ -220,4 +295,5 @@ int main() {
     //str_echo(connfd);
     close(connfd);
   }
+  */
 }
