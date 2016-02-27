@@ -62,7 +62,7 @@ void queue_destroy(queue_t *q) {
   }
   free(q->hlock); free(q->tlock);
   free(q->nonempty);
-  free(q);
+  //free(q);
 }
 
 void enqueue(queue_t *q, int fd) {
@@ -180,4 +180,5 @@ int main() {
 
   
   queue_destroy(q);
+  free(q);
 }

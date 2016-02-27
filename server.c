@@ -58,7 +58,9 @@ int Recv(int socket, void *buffer, size_t length, int flags) {
   return ret;
 }
 
-int new_listening_socket() {
+/* Initialize listening socket.
+ */
+int listening_socket() {
   int listenfd;
   struct sockaddr_in serveraddr;
   
@@ -114,15 +116,96 @@ void *basic_routine(void *arg) {
   return NULL;
 }
 
+void *worker_routine(void *arg) {
+  pthread_detach(pthread_self());
+  
+  int connfd;
+  char msg[MAXMSG];
+  http_request_t *request = malloc(sizeof(http_request_t));
+  queue_t *q = (queue_t *)arg;
+  
+  while (1) {
+    dequeue(q,&connfd);
+    recv(connfd,msg,MAXMSG,MSG_WAITALL);
+    parse_request(msg,request);
+
+    if (request->method == GET) {
+      
+    }
+  }
+}
+
 
 int main() {
 
-  pthread_t tid; // currently does not keep track of all created tids
+  int listfd, connfd, i;
+  queue_t *connections;
+  pthread_t workers[NUM_WORKERS];
+
+  // Not sure if I need to access these later.
+  // Remove if not.
+  struct sockaddr_in clientaddr;
+  socklen_t clientlen;
+
+  /* Initalize connections queue */
+  connections = malloc(sizeof(queue_t));
+  queue_init(connections);
+
+  /* Spawn worker threads. These will immediately
+   * block until signaled by main server thread 
+   * pushes connections onto the queue and signals. */
+  for (i = 0; i < NUM_WORKERS; i++)
+    pthread_create(&workers[i], NULL, worker_routine, (void *)connections);
+  
+  listfd = listening_socket();
+
+  while(1) {
+    clientlen = sizeof(clientaddr);
+    connfd = Accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen);
+    DEBUG_PRINT("connection from %s, port %d\n",
+	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
+	        ntohs(clientaddr.sin_port));
+    enqueue(q,connfd);
+  }
+
+  /*
+    Ah, so I might need two queues:
+    - first is simply to accept incoming connections
+    - second stores http_request_t structs
+      - there need to be threads that pop from q1, read and create struct,
+        push onto q2
+      - threads at end of q2 pull off structs
+        - if done, send response
+        - if not...
+
+     Scratch that. Just one:
+     - main server thread just mallocs request struct and enqueues
+     - worker threads pop off structs
+       - call recv on the connection
+       - if timed out or closed, get rid of it
+
+     Let's just assume that a worker thread should read until it encounters
+     double \n\n
+
+     What the hell, let's just do WAITALL for now
+     In this case, worker threads just block on recv until entire message has
+     arrived, then starts parsing.
+     If the socket had timed out before then, then just...
+
+     
+  */
+
+
+
+  queue_destroy(q);
+  free(q);
+  
+  
   
   int listenfd, connfd;
-  struct sockaddr_in /*serveraddr,*/ clientaddr;  
+  struct sockaddr_in clientaddr;  
   socklen_t clientlen;
-  char buff[MAXLEN];
+  char buf[MAXLEN];
 
   listenfd = new_listening_socket();
   //memset(&clientaddr, 0, sizeof(clientaddr));
@@ -130,11 +213,11 @@ int main() {
   while (1) {
     clientlen = sizeof(clientaddr);
     connfd = Accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen);
-    printf("connection from %s, port %d\n",
-	   inet_ntop(AF_INET, &clientaddr.sin_addr, buff, sizeof(buff)),
-	   ntohs(clientaddr.sin_port));
+    DEBUG_PRINT("connection from %s, port %d\n",
+	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
+	        ntohs(clientaddr.sin_port));
     //pthread_create(&tid, NULL, basic_routine, (void *)connfd);
-    str_echo(connfd);
+    //str_echo(connfd);
     close(connfd);
   }
 }

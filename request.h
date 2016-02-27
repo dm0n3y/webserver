@@ -3,8 +3,10 @@
 
 typedef int status_t;
 
+typedef enum { GET, HEAD, POST } http_method_t;
+
 typedef struct http_request_t_ {
-  int method;
+  http_method_t method;
   char path[MAXPATH];
   int httpver;
 } http_request_t;

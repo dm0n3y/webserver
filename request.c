@@ -33,9 +33,9 @@ char *strsep_whitespace(char **s) {
 }
 
 status_t parse_method(char *token, http_request_t *request) {
-  if      (strcmp(token,"GET")  == 0) request->method = GET_;
-  else if (strcmp(token,"HEAD") == 0) request->method = HEAD_;
-  else if (strcmp(token,"POST") == 0) request->method = POST_;
+  if      (strcmp(token,"GET")  == 0) request->method = GET;
+  else if (strcmp(token,"HEAD") == 0) request->method = HEAD;
+  else if (strcmp(token,"POST") == 0) request->method = POST;
   else return BAD_REQUEST_;
 
   return OK_;
