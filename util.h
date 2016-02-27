@@ -7,7 +7,8 @@
 /* File parameters */
 // CHANGE THIS WHEN SWITCHING TO UNIX MACHINE
 #define MAXPATH       1024
-#define DOCUMENT_ROOT "/Network/Servers/fuji.cs.williams.edu/Volumes/Users3/15dm7/Documents/courses/cs339/a1/resources"
+//#define DOCUMENT_ROOT "/Network/Servers/fuji.cs.williams.edu/Volumes/Users3/15dm7/Documents/courses/cs339/a1/resources"
+#define DOCUMENT_ROOT "/home/cs-students/15dm7/cs339/a1/resources"
 #define COW_FILE      "/Williams-Logo.jpg"
 #define SEAL_FILE     "/williams.gif"
 #define MASCOT_FILE   "/reading-cow.jpg"
