@@ -164,14 +164,15 @@ void *worker_routine(void *arg) {
       
       /* If error or time out, close and move on */
       if ( (len = recv(connfd,msg+recv_bytes,MAXMSG-recv_bytes,0)) <= 0 ) {
-	//if (len < 0) perror("recv");
+	if (len < 0) perror("recv");
 	close(connfd);
 	goto loopstart;
       }
       recv_bytes += len;
     }
     //printf("Received: %s\n",msg);
-    //for (i = 0; i < len; i++) putchar(msg[i]); //putchar('\n');
+    int i;
+    for (i = 0; i < len; i++) putchar(msg[i]); //putchar('\n');
     stat = parse_request(msg,request);
     //printf("Parse result: %d\n",stat);
 
@@ -197,9 +198,18 @@ void *worker_routine(void *arg) {
 	perror("open");
 	printf("%s\n",request->path);
       }
-      while ( (len = read(file,msg,MAXMSG)) > 0 )
+      while ( (len = read(file,msg,MAXMSG)) > 0 ) {
 	// ADD ERROR HANDLING
-	send(connfd,msg,len,0);
+	//printf("sending %s\n",request->path);
+	/*
+	printf("sending\n");
+	for (i = 0; i < len; i++) putchar(msg[i]); //putchar('\n');
+	printf("\n");
+	*/
+	if ( send(connfd,msg,len,0) < 0 ) perror("sending file");
+      }
+      close(file);
+      printf("sent %s\n",request->path);
     }
 
     if (request->httpver == 0)
@@ -220,7 +230,7 @@ int main() {
   struct sockaddr_in clientaddr;
   socklen_t clientlen;
   struct timeval timeout;
-  timeout.tv_sec  = 1;
+  timeout.tv_sec  = 10;
   timeout.tv_usec = 0;
 
   /* Initalize connections queue */
@@ -238,11 +248,17 @@ int main() {
   while(1) {
     clientlen = sizeof(clientaddr);
     connfd = accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
+    if (connfd < 0) {
+      perror("accept");
+      continue;
+    }
     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
 	       (void *)&timeout, sizeof(timeout));
+    /*
     DEBUG_PRINT("connection from %s, port %d\n",
 	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
 	        ntohs(clientaddr.sin_port));
+    */
     enqueue(connections,connfd);
   }
 
