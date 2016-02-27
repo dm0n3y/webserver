@@ -1,3 +1,11 @@
+* What's left:
+** DONE add content length and content type header lines
+** TODO timeout heuristic
+** TODO adding HTTP status phrases (just a simple switch function)
+** TODO error handling here and there
+** TODO code cleanup
+** TODO command line arguments
+** TODO writeup
 * Ideal high-level structure
     
   [accept] --q--> [respond]

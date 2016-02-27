@@ -29,6 +29,20 @@
                                        // termination
 #define TRY_CATCH_S(STMT)  do { if ((STMT) == NULL) { printf("error in TRY_CATCH_S\n"); return BAD_REQUEST_; } } while (0)
 
+/*
+char *type_to_str(content_type_t type) {
+  switch (type) {
+  case APPLICATION: return "application";
+  case AUDIO:       return "audio";
+  case IMAGE:       return "image";
+  case MESSAGE:     return "message";
+  case MULTIPART:   return "multipart";
+  case TEXT:        return "text";
+  case VIDEO:       return "video";
+  }
+}
+*/
+
 
 /* A private utility method that acts like strsep(s," \t"), but
  * also advances s so that it skips any additional whitespace.
@@ -70,14 +84,22 @@ status_t parse_method(char *token, http_request_t *request) {
 /* Just a simple switch statement for this assignment. */
 status_t parse_path(char *token, http_request_t *request) {
   if (strcmp(token,"/")           == 0 ||
-      strcmp(token,"/index.html") == 0 )
+      strcmp(token,"/index.html") == 0 ) {
     strcpy(request->path, DOCUMENT_ROOT "/index.html");
-  else if (strcmp(token,COW_FILE) == 0)
+    strcpy(request->type,"text");
+  }
+  else if (strcmp(token,COW_FILE) == 0) {
     strcpy(request->path, DOCUMENT_ROOT COW_FILE);
-  else if (strcmp(token,SEAL_FILE) == 0)
+    strcpy(request->type, "image");
+  }
+  else if (strcmp(token,SEAL_FILE) == 0) {
     strcpy(request->path, DOCUMENT_ROOT SEAL_FILE);
-  else if (strcmp(token,MASCOT_FILE) == 0)
+    strcpy(request->type, "image");
+  }
+  else if (strcmp(token,MASCOT_FILE) == 0) {
     strcpy(request->path, DOCUMENT_ROOT MASCOT_FILE);
+    strcpy(request->type, "image");
+  }
   else
     return NOT_FOUND_;
   

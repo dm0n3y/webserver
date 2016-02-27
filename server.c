@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <bsd/string.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <pthread.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -127,9 +128,10 @@ void *worker_routine(void *arg) {
   
   int connfd, file, len, recv_bytes;
   char msg[MAXMSG], buf[1024], c;
-  status_t stat;
+  status_t status;
   http_request_t *request = malloc(sizeof(http_request_t));
   queue_t *q = (queue_t *)arg;
+  struct stat st; // for file stats
   
   while (1) {
   loopstart:
@@ -142,7 +144,7 @@ void *worker_routine(void *arg) {
       /*
       if (recv_bytes >= MAXMSG) {
 	
-	stat = REQUEST_TOO_LARGE_;
+	status = REQUEST_TOO_LARGE_;
 	goto send;
       }
       */
@@ -157,7 +159,7 @@ void *worker_routine(void *arg) {
       /*
       if (len < 0) {
 	perror("recv");
-	stat = REQUEST_TIMEOUT_;
+	status = REQUEST_TIMEOUT_;
 	goto send;
 	} */
 
@@ -173,13 +175,13 @@ void *worker_routine(void *arg) {
     //printf("Received: %s\n",msg);
     int i;
     for (i = 0; i < len; i++) putchar(msg[i]); //putchar('\n');
-    stat = parse_request(msg,request);
-    //printf("Parse result: %d\n",stat);
+    status = parse_request(msg,request);
+    //printf("Parse result: %d\n",status);
 
   send:
     /* Send initial line */
     // ADD REASON PHRASE
-    len = sprintf(msg, "HTTP/1.%d %d\r\n",request->httpver,stat);
+    len = sprintf(msg, "HTTP/1.%d %d\r\n",request->httpver,status);
     send(connfd,msg,len,0);
 
     /* Send header lines */
@@ -189,11 +191,19 @@ void *worker_routine(void *arg) {
 		   "Date: %a, %d %b %Y %H:%M:%S GMT\r\n",gmtime(&now));
     send(connfd,buf,len,0);
 
+    if (status == OK_ && request->method == GET) {
+      // ADD ERROR HANDLING
+      stat(request->path, &st);
+      len = sprintf(msg, "Content-Length: %d\r\n", (int)st.st_size);
+      send(connfd,msg,len,0);
+      len = sprintf(msg, "Content-Type: %s\r\n", request->type);
+    }
+
     /* Send empty line */
     send(connfd,"\r\n",2,0);
     
     // if get, send file  [ BUT NOT IF PARSE RETURNED ERROR! ]
-    if (stat == OK_ && request->method == GET) {     
+    if (status == OK_ && request->method == GET) {     
       if ( (file = open(request->path, O_RDONLY)) < 0 ) {
 	perror("open");
 	printf("%s\n",request->path);
