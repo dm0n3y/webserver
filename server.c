@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <string.h>
+#include <bsd/string.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <netinet/in.h>
@@ -20,6 +20,7 @@
  * a system call in a function with the same name, but the first letter
  * capitalized.
  */
+/*
 int Socket(int domain, int type, int protocol) {
   int sockfd;
   if ( (sockfd = socket(domain,type,protocol)) < 0 ) {
@@ -60,6 +61,7 @@ int Recv(int socket, void *buffer, size_t length, int flags) {
   }
   return ret;
 }
+*/
 
 /* Initialize listening socket.
  */
@@ -72,13 +74,13 @@ int listening_socket() {
   serveraddr.sin_port = htons(PORT_);
   serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  listenfd = Socket(AF_INET, SOCK_STREAM, 0);
-  Bind(listenfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
-  Listen(listenfd, BACKLOG_);
+  listenfd = socket(AF_INET, SOCK_STREAM, 0);
+  bind(listenfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
+  listen(listenfd, BACKLOG_);
   return listenfd;
 }
 
-
+/*
 void str_echo(int connfd) {
   size_t n;
   char buf[MAXLEN];
@@ -98,7 +100,7 @@ void *str_echo_routine(void *arg) {
   close((int)arg);
   return NULL;
 }
-
+*/
 /*
 void *basic_routine(void *arg) {
   int connfd = (int)arg;
@@ -133,8 +135,8 @@ void *worker_routine(void *arg) {
   loopstart:
     dequeue(q,&connfd);
     memset(msg,0,MAXMSG); recv_bytes = 0;
-    while (!strnstr(msg,"\r\n\r\n",MAXMSG) &&
-	   !strnstr(msg,"\n\n"    ,MAXMSG) &&
+    while (strstr(strndup(msg,recv_bytes),"\r\n\r\n"/*,MAXMSG*/) == NULL &&
+	   strstr(strndup(msg,recv_bytes),"\n\n"    /*,MAXMSG*/) == NULL &&
            recv_bytes < MAXMSG) {
       /* If msg too large, skip parsing and send response */
       /*
@@ -235,7 +237,7 @@ int main() {
 
   while(1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
+    connfd = accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
 	       (void *)&timeout, sizeof(timeout));
     DEBUG_PRINT("connection from %s, port %d\n",
