@@ -1,5 +1,5 @@
-#ifndef __REQUEST_H__
-#define __REQUEST_H__
+#ifndef __HTTP_H__
+#define __HTTP_H__
 
 typedef int status_t;
 #define OK_                200
@@ -9,10 +9,10 @@ typedef int status_t;
 #define REQUEST_TIMEOUT_   408
 #define REQUEST_TOO_LARGE_ 413
 #define SERVER_ERR_        500
+const char *status_to_str(status_t s);
 
 typedef enum { GET, HEAD } http_method_t;
 
-/*
 typedef enum { 
   APPLICATION,
   AUDIO,
@@ -22,14 +22,13 @@ typedef enum {
   TEXT,
   VIDEO
 } content_type_t;
-*/
 
-/*char *type_to_string(content_type_t type);*/
+const char *type_to_str(content_type_t type);
 
 typedef struct http_request_t_ {
   http_method_t method;
   char path[MAXPATH];
-  char type[12];
+  content_type_t type;
   int httpver;
 } http_request_t;
 

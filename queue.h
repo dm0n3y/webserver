@@ -11,7 +11,10 @@ typedef struct queue_t_ {
   node_t *tail;
   pthread_mutex_t *hlock;
   pthread_mutex_t *tlock;
+  pthread_mutex_t *slock; // for debugging, not necessary
   pthread_cond_t *nonempty;
+  int size; /* imprecise and racy, only
+	     * used as timeout heuristic */
 } queue_t;
 
 void queue_init(queue_t *q);

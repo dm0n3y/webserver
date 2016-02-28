@@ -1,10 +1,11 @@
 * What's left:
+** DONE Makefile
 ** DONE add content length and content type header lines
-** TODO timeout heuristic
-** TODO adding HTTP status phrases (just a simple switch function)
-** TODO error handling here and there
-** TODO code cleanup
-** TODO command line arguments
+** DONE timeout heuristic
+** DONE adding HTTP status phrases (just a simple switch function)
+** DONE error handling here and there
+** DONE code cleanup
+** DONE command line arguments
 ** TODO writeup
 * Ideal high-level structure
     

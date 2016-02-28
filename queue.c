@@ -5,6 +5,16 @@
 #include "queue.h"
 #include "util.h"
 
+/* Simple two-lock concurrent queue based on the one in
+ * http://www.cs.rochester.edu/~scott/papers/1996_PODC_queues.pdf
+ * The queue uses a head lock to protect concurrent dequeues
+ * and a tail lock to protect concurrent enqueues. Enqueue always
+ * succeeds, and their dequeue method may do nothing and return
+ * false if it sees that the queue may be empty. My queue has an
+ * extra wait-and-signal mechanism that allows dequeueing threads
+ * to sleep while waiting for the queue to become nonempty.
+ */
+
 void queue_init(queue_t *q) {
   node_t *dummy;
   pthread_mutex_t *hlock, *tlock;
@@ -38,6 +48,13 @@ void queue_init(queue_t *q) {
   q->tlock = tlock;
   q->nonempty = nonempty;
   pthread_cond_init(q->nonempty, NULL);
+
+  q->size = 0;
+  if (DEBUG) {
+    pthread_mutex_t *slock = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(slock,NULL);
+    q->slock = slock;
+  }
   return;
 
  cleanup_nonempty:
@@ -61,8 +78,8 @@ void queue_destroy(queue_t *q) {
     node = next;
   }
   free(q->hlock); free(q->tlock);
+  if (DEBUG) free(q->slock);
   free(q->nonempty);
-  //free(q);
 }
 
 void enqueue(queue_t *q, int fd) {
@@ -76,6 +93,10 @@ void enqueue(queue_t *q, int fd) {
     /* Add node to end of queue */
     q->tail->next = node;
     q->tail = node;
+    if (DEBUG) pthread_mutex_lock(q->slock);
+      q->size++;
+    if (DEBUG) pthread_mutex_unlock(q->slock);
+
     /* Wake any sleeping worker threads */
     pthread_cond_signal(q->nonempty);
   }
@@ -97,6 +118,9 @@ void dequeue(queue_t *q, int *fd) {
     old_head = q->head;
     *fd = old_head->next->fd;
     q->head = q->head->next;
+    if (DEBUG) pthread_mutex_lock(q->slock);
+      q->size--;
+    if (DEBUG) pthread_mutex_unlock(q->slock);
   }
   pthread_mutex_unlock(q->hlock);
   free(old_head);
