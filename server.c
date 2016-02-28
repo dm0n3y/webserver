@@ -80,7 +80,7 @@ void *worker_routine(void *arg) {
 	   strstr(strndup(msg,recv_bytes),"\n\n"    ) == NULL &&
            recv_bytes < MAXMSG) {
       if ( (len = recv(connfd,msg+recv_bytes,MAXMSG-recv_bytes,0)) <= 0 ) {
-	perror("recv");
+	//perror("recv");
 	/* If client has closed, then close and move on */
 	if (len == 0) {
 	  close(connfd);
@@ -88,8 +88,8 @@ void *worker_routine(void *arg) {
 	}
 	/* If timeout or error, skip parsing and send
 	 * appropriate error message */
-	if (errno == EWOULDBLOCK) status = REQUEST_TIMEOUT_;
-	else                      status = SERVER_ERR_;	
+	if (errno == EWOULDBLOCK) { status = REQUEST_TIMEOUT_; }
+	else                      { status = SERVER_ERR_; perror("recv"); }
 	goto send; 
       }
       recv_bytes += len;
@@ -187,11 +187,10 @@ int main(int argc, char *argv[]) {
     }
 
     /* Basic heuristic for timeout based on queue length.
-       Minimum timeout 1s + another second for every 50
-       connections on the queue. Queue is almost always
-       empty, though, so it is essentially a constant 1s. */
+       Minimum timeout 5s + another second for every 50
+       connections on the queue. */
     i = connections->size;    
-    timeout.tv_sec = 1;
+    timeout.tv_sec = 5;
     if (i > 0) timeout.tv_sec += i/50;
     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
 	       (void *)&timeout, sizeof(timeout));
@@ -199,7 +198,6 @@ int main(int argc, char *argv[]) {
 	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
 	        ntohs(clientaddr.sin_port));
     DEBUG_PRINT("%d\n",connections->size);
-
     enqueue(connections,connfd);
   }
 
