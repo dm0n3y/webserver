@@ -12,5 +12,5 @@ extern const char *DOCUMENT_ROOT;
 #define MAXPATH       1024
 
 /* Debugging */
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_PRINT if (DEBUG) printf
