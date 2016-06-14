@@ -1,6 +1,0 @@
-#!/bin/bash
-
-numclients=25
-for i in $(seq 1 $numclients); do
-    "/usr/bin/expect" "~/Documents/courses/cs339/a1/connect" localhost 8998 &
-done

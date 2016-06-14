@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <bsd/string.h>
+#include <string.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -138,12 +138,13 @@ void *worker_routine(void *arg) {
 }
 
 // default DOCUMENT_ROOT for my own use
-const char *DOCUMENT_ROOT = "/home/cs-students/15dm7/cs339/a1/resources";
+// const char *DOCUMENT_ROOT = "/home/cs-students/15dm7/cs339/a1/resources";
+const char *DOCUMENT_ROOT;
 int PORT;
 int main(int argc, char *argv[]) {
 
   char buf[1024]; // for DEBUG_PRINT in loop
-  
+
   int listfd, connfd, i;
   queue_t *connections;
   pthread_t workers[NUM_WORKERS];  
@@ -151,6 +152,15 @@ int main(int argc, char *argv[]) {
   socklen_t clientlen;
   struct timeval timeout;
   timeout.tv_usec = 0;
+
+  /* Get current working directory */
+  char cwd[1024];
+  const char *RESOURCES = "/resources";
+  if (getcwd(cwd, sizeof(cwd)-sizeof(RESOURCES)) == NULL) {
+    perror("getcwd() error");
+  }
+  /* Assign document root */
+  DOCUMENT_ROOT = strcat(cwd,RESOURCES);
 
   /* Parse command line args */
   i = 1;
