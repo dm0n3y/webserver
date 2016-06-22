@@ -69,7 +69,7 @@ void *worker_routine(void *arg) {
   http_request_t *request = malloc(sizeof(http_request_t));
   queue_t *q = (queue_t *)arg;
   struct stat st; // for file stats
-  
+
   while (1) {
   loopstart:
     dequeue(q,&connfd);
@@ -77,20 +77,20 @@ void *worker_routine(void *arg) {
 
     /* Loop until full HTTP msg is received */
     while (strstr(strndup(msg,recv_bytes),"\r\n\r\n") == NULL &&
-	   strstr(strndup(msg,recv_bytes),"\n\n"    ) == NULL &&
+	         strstr(strndup(msg,recv_bytes),"\n\n"    ) == NULL &&
            recv_bytes < MAXMSG) {
       if ( (len = recv(connfd,msg+recv_bytes,MAXMSG-recv_bytes,0)) <= 0 ) {
-	//perror("recv");
-	/* If client has closed, then close and move on */
-	if (len == 0) {
-	  close(connfd);
-	  goto loopstart;
-	}
-	/* If timeout or error, skip parsing and send
-	 * appropriate error message */
-	if (errno == EWOULDBLOCK) { status = REQUEST_TIMEOUT_; }
-	else                      { status = SERVER_ERR_; perror("recv"); }
-	goto send; 
+        //perror("recv");
+        /* If client has closed, then close and move on */
+        if (len == 0) {
+          close(connfd);
+          goto loopstart;
+        }
+        /* If timeout or error, skip parsing and send
+         * appropriate error message */
+        if (errno == EWOULDBLOCK) { status = REQUEST_TIMEOUT_; }
+        else                      { status = SERVER_ERR_; perror("recv"); }
+        goto send; 
       }
       recv_bytes += len;
     }
@@ -124,7 +124,7 @@ void *worker_routine(void *arg) {
     if (status == OK_ && request->method == GET) {     
       if ( (file = open(request->path, O_RDONLY)) < 0 ) perror("open");
       while ( (len = read(file,msg,MAXMSG)) > 0 )
-	if ( send(connfd,msg,len,0) < 0 ) perror("sending file");
+        if ( send(connfd,msg,len,0) < 0 ) perror("sending file");
       close(file);
     }
 
@@ -186,7 +186,15 @@ int main(int argc, char *argv[]) {
 
   /* Initalize listening socket */
   listfd = listening_socket();
+  DEBUG_PRINT("socket listening\n");
 
+  /* For logging peername
+  int res;
+  struct sockaddr_in addr;
+  socklen_t addr_size = sizeof(struct sockaddr_in);
+  char clientip[20];
+  */
+  
   /* Accept connections, set their timeouts, and enqueue them */
   while(1) {
     clientlen = sizeof(clientaddr);
@@ -196,11 +204,18 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    /* Get peername and log 
+    res = getpeername(connfd, (struct sockaddr *)&addr, &addr_size);
+    strcpy(clientip, inet_ntoa(addr.sin_addr));
+    printf("new connection: %s\n",clientip);
+    */
+    
+
     /* Basic heuristic for timeout based on queue length.
-       Minimum timeout 5s + another second for every 50
+       Minimum timeout 10s + another second for every 50
        connections on the queue. */
-    i = connections->size;    
-    timeout.tv_sec = 5;
+    i = connections->size;
+    timeout.tv_sec = 10;
     if (i > 0) timeout.tv_sec += i/50;
     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
 	       (void *)&timeout, sizeof(timeout));

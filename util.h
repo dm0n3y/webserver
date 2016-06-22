@@ -1,6 +1,6 @@
 /* System parameters */
 extern int PORT;
-#define BACKLOG     10
+#define BACKLOG     1024
 #define NUM_WORKERS 25*sysconf(_SC_NPROCESSORS_ONLN)-1
 #define MAXMSG      1024
 
