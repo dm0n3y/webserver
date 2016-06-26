@@ -4,7 +4,7 @@
 /* System parameters */
 extern int PORT;
 #define BACKLOG     1024
-#define NUM_WORKERS 25*sysconf(_SC_NPROCESSORS_ONLN)-1
+#define NUM_THREADS 24*sysconf(_SC_NPROCESSORS_ONLN)
 #define MAXMSG      1024
 
 /* File parameters */

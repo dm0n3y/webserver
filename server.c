@@ -29,7 +29,8 @@ int socket_(int domain, int type, int protocol) {
 int bind_(int socket, const struct sockaddr *address, socklen_t address_len) {
   int ret;
   if ( (ret = bind(socket,address,address_len)) < 0 ) {
-    fprintf(stderr, "Bind error!\n");
+    //fprintf(stderr, "Bind error (%d)!\n", ret);
+    perror("bind_");
     exit(1);
   }
   return ret;
@@ -170,6 +171,61 @@ void *worker_routine(void *arg) {
   }
 }
 
+struct greeter_args {
+  int listfd;
+  queue_t *q;
+};
+
+void *greeter_routine(void *arg) {
+  struct greeter_args *ga = (struct greeter_args *)arg;
+  int listfd = ga->listfd;
+  queue_t *q = ga->q;
+  
+  int connfd, n;
+  struct sockaddr_in clientaddr;
+  socklen_t clientlen;
+  struct timeval timeout;
+
+  /* For logging peername
+  int res;
+  struct sockaddr_in addr;
+  socklen_t addr_size = sizeof(struct sockaddr_in);
+  char clientip[20];
+  */
+  
+  /* Accept connections, set their timeouts, and enqueue them */
+  while(1) {
+    clientlen = sizeof(clientaddr);
+    connfd = accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
+    if (connfd < 0) {
+      perror("accept");
+      continue;
+    }
+
+    /* Get peername and log
+    res = getpeername(connfd, (struct sockaddr *)&addr, &addr_size);
+    strcpy(clientip, inet_ntoa(addr.sin_addr));
+    printf("new connection: %s\n",clientip);
+    */
+
+    /* Basic heuristic for timeout based on queue length.
+       Minimum timeout 10s + another second for every 50
+       connections on the queue. */
+    n = q->size;
+    timeout.tv_sec = 10;
+    if (n > 0) timeout.tv_sec += n/50;
+    setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
+               (void *)&timeout, sizeof(timeout));
+#if DEBUG
+      printf("connection from %s, port %d\n",
+             inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
+             ntohs(clientaddr.sin_port));
+      printf("%d\n",q->size);
+#endif
+    enqueue(q,connfd);
+  }
+}
+
 // default DOCUMENT_ROOT for my own use
 // const char *DOCUMENT_ROOT = "/home/cs-students/15dm7/cs339/a1/resources";
 const char *DOCUMENT_ROOT;
@@ -181,11 +237,12 @@ int main(int argc, char *argv[]) {
 
   int listfd, connfd, i;
   queue_t *connections;
-  pthread_t workers[NUM_WORKERS];
-  struct sockaddr_in clientaddr;
-  socklen_t clientlen;
-  struct timeval timeout;
-  timeout.tv_usec = 0;
+  pthread_t workers[NUM_THREADS/2];
+  pthread_t greeters[NUM_THREADS/2];
+  //struct sockaddr_in clientaddr;
+  //socklen_t clientlen;
+  //struct timeval timeout;
+  //timeout.tv_usec = 0;
 
   /* Get current working directory */
   char cwd[1024];
@@ -212,58 +269,24 @@ int main(int argc, char *argv[]) {
   connections = malloc(sizeof(queue_t));
   queue_init(connections);
 
+  /* Initialize listening socket */
+  listfd = listening_socket();
+
+  /* Package arguments for greeter threads */
+  struct greeter_args ga = { .listfd = listfd, .q = connections };
+
+  /* Spawn greeter threads. */
+  for (i = 0; i < NUM_THREADS/2; i++)
+    pthread_create(&greeters[i], NULL, greeter_routine, (void *)(&ga));
+
   /* Spawn worker threads. These will immediately
    * block until signaled by main server thread 
    * pushes connections onto the queue and signals. */
-  for (i = 0; i < NUM_WORKERS; i++)
+  for (i = 0; i < NUM_THREADS/2; i++)
     pthread_create(&workers[i], NULL, worker_routine, (void *)connections);
 
-  /* Initalize listening socket */
-  listfd = listening_socket();
-#if DEBUG
-  printf("socket listening\n");
-#endif
+  pthread_exit(NULL);
 
-  /* For logging peername
-  int res;
-  struct sockaddr_in addr;
-  socklen_t addr_size = sizeof(struct sockaddr_in);
-  char clientip[20];
-  */
-  
-  /* Accept connections, set their timeouts, and enqueue them */
-  while(1) {
-    clientlen = sizeof(clientaddr);
-    connfd = accept(listfd, (struct sockaddr *) &clientaddr, &clientlen);
-    if (connfd < 0) {
-      perror("accept");
-      continue;
-    }
-
-    /* Get peername and log 
-    res = getpeername(connfd, (struct sockaddr *)&addr, &addr_size);
-    strcpy(clientip, inet_ntoa(addr.sin_addr));
-    printf("new connection: %s\n",clientip);
-    */
-    
-    /* Basic heuristic for timeout based on queue length.
-       Minimum timeout 10s + another second for every 50
-       connections on the queue. */
-    i = connections->size;
-    timeout.tv_sec = 10;
-    /* Need to check if i > 0 because size is racy */
-    if (i > 0) timeout.tv_sec += i/50;
-    setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
-	       (void *)&timeout, sizeof(timeout));
-#if DEBUG
-    printf("connection from %s, port %d\n",
-           inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
-           ntohs(clientaddr.sin_port));
-    printf("%d\n",connections->size);
-#endif
-    enqueue(connections,connfd);
-  }
-  
-  queue_destroy(connections);
-  free(connections);
+  //queue_destroy(connections);
+  //free(connections);
 }
