@@ -33,7 +33,7 @@ void queue_init(queue_t *q) {
     goto cleanup_hlock;
   }
   if ( !(nonempty = malloc(sizeof(pthread_cond_t))) ) {
-    fprintf(stderr, "Out of memory!\n");    
+    fprintf(stderr, "Out of memory!\n");
     goto cleanup_tlock;
   }
   if ( pthread_mutex_init(hlock,NULL) != 0 ||
@@ -50,11 +50,14 @@ void queue_init(queue_t *q) {
   pthread_cond_init(q->nonempty, NULL);
 
   q->size = 0;
-  if (DEBUG) {
-    pthread_mutex_t *slock = malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(slock,NULL);
-    q->slock = slock;
-  }
+#if DEBUG_QSIZE
+  pthread_mutex_t *slock = malloc(sizeof(pthread_mutex_t));
+  pthread_mutex_init(slock,NULL);
+  q->slock = slock;
+#endif
+#if DEBUG_ENQ
+  q->enq_count = 0;
+#endif
   return;
 
  cleanup_nonempty:
@@ -78,7 +81,9 @@ void queue_destroy(queue_t *q) {
     node = next;
   }
   free(q->hlock); free(q->tlock);
-  if (DEBUG) free(q->slock);
+#if DEBUG_QSIZE
+  free(q->slock);
+#endif
   free(q->nonempty);
 }
 
@@ -93,9 +98,19 @@ void enqueue(queue_t *q, int fd) {
     /* Add node to end of queue */
     q->tail->next = node;
     q->tail = node;
-    if (DEBUG) pthread_mutex_lock(q->slock);
-      q->size++;
-    if (DEBUG) pthread_mutex_unlock(q->slock);
+#if DEBUG_QSIZE
+    pthread_mutex_lock(q->slock);
+#endif
+    q->size++;
+#if DEBUG_QSIZE
+    pthread_mutex_unlock(q->slock);
+#endif
+#if DEBUG_ENQ
+    ++(q->enq_count);
+    if (q->enq_count % 1000 == 0 ||
+        q->enq_count > 10000)
+      printf("enqueue count: %d\n",++(q->enq_count));
+#endif
 
     /* Wake any sleeping worker threads */
     pthread_cond_signal(q->nonempty);
@@ -118,9 +133,13 @@ void dequeue(queue_t *q, int *fd) {
     old_head = q->head;
     *fd = old_head->next->fd;
     q->head = q->head->next;
-    if (DEBUG) pthread_mutex_lock(q->slock);
-      q->size--;
-    if (DEBUG) pthread_mutex_unlock(q->slock);
+#if DEBUG_QSIZE
+    pthread_mutex_lock(q->slock);
+#endif
+    q->size--;
+#if DEBUG_QSIZE
+    pthread_mutex_unlock(q->slock);
+#endif
   }
   pthread_mutex_unlock(q->hlock);
   free(old_head);

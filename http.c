@@ -90,8 +90,10 @@ char *strsep_newline(char **s) {
 status_t parse_method(char *token, http_request_t *request) {
   if      (strcmp(token,"GET")  == 0) request->method = GET;
   else if (strcmp(token,"HEAD") == 0) request->method = HEAD;
-  else { 
-    DEBUG_PRINT("error in parse_method!\n"); 
+  else {
+#if DEBUG
+    printf("error in parse_method!\n");
+#endif
     return BAD_REQUEST_;
   }
 

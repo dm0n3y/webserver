@@ -35,4 +35,4 @@ typedef struct http_request_t_ {
 
 status_t parse_request(char *msg, http_request_t *request);
 
-#endif // __REQUEST_H__
+#endif // __HTTP_H__

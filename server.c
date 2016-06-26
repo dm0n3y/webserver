@@ -70,6 +70,12 @@ void *worker_routine(void *arg) {
   queue_t *q = (queue_t *)arg;
   struct stat st; // for file stats
 
+#if DEBUG_ENQ
+  int close_count;
+  int reenqueue_count;
+  int slowclose_count;
+#endif
+
   while (1) {
   loopstart:
     dequeue(q,&connfd);
@@ -83,14 +89,27 @@ void *worker_routine(void *arg) {
         //perror("recv");
         /* If client has closed, then close and move on */
         if (len == 0) {
+#if DEBUG_ENQ
+          printf("slow-closed %d (%d)\n",connfd,++slowclose_count);
+#endif
           close(connfd);
           goto loopstart;
         }
         /* If timeout or error, skip parsing and send
          * appropriate error message */
-        if (errno == EWOULDBLOCK) { status = REQUEST_TIMEOUT_; }
-        else                      { status = SERVER_ERR_; perror("recv"); }
-        goto send; 
+        if (errno == EWOULDBLOCK) {
+          status = REQUEST_TIMEOUT_;
+          #if DEBUG_ERR
+          printf("%d: timeout\n", connfd);
+          #endif
+        }
+        else {
+          status = SERVER_ERR_; perror("recv");
+          #if DEBUG_ERR
+          printf("%d: server error\n", connfd);
+          #endif
+        }
+        goto send;
       }
       recv_bytes += len;
     }
@@ -121,19 +140,33 @@ void *worker_routine(void *arg) {
     send(connfd,"\r\n",2,0);
     
     /* If request was well-formed GET, then send file */
-    if (status == OK_ && request->method == GET) {     
+    if (status == OK_ && request->method == GET) {
       if ( (file = open(request->path, O_RDONLY)) < 0 ) perror("open");
       while ( (len = read(file,msg,MAXMSG)) > 0 )
         if ( send(connfd,msg,len,0) < 0 ) perror("sending file");
       close(file);
     }
 
-    /* If HTTP/1.0, close connection. */
-    if (request->httpver == 0)
+    /* If HTTP/1.0 or recv error, close connection. */
+    if (request->httpver == 0 || status != OK_) {
       close(connfd);
-    /* Otherwise, re-enqueue. */
-    else
+      #if DEBUG_ENQ
+      if (status != OK_) {
+        printf("bad status: %d\n",status);
+        ++close_count;
+        if (close_count % 1000 == 0 || close_count > 10000) {
+          printf("closed %d (%d)\n",connfd,close_count);
+        }
+      }
+      #endif
+    }
+    /* Otherwise, keep connection alive and re-enqueue */
+    else {
       enqueue(q,connfd);
+      #if DEBUG_ENQ
+      printf("re-enqueued %d (%d)\n", connfd, ++reenqueue_count);
+      #endif
+    }
   }
 }
 
@@ -142,12 +175,13 @@ void *worker_routine(void *arg) {
 const char *DOCUMENT_ROOT;
 int PORT;
 int main(int argc, char *argv[]) {
-
-  char buf[1024]; // for DEBUG_PRINT in loop
+#if DEBUG
+  char buf[1024];
+#endif
 
   int listfd, connfd, i;
   queue_t *connections;
-  pthread_t workers[NUM_WORKERS];  
+  pthread_t workers[NUM_WORKERS];
   struct sockaddr_in clientaddr;
   socklen_t clientlen;
   struct timeval timeout;
@@ -186,7 +220,9 @@ int main(int argc, char *argv[]) {
 
   /* Initalize listening socket */
   listfd = listening_socket();
-  DEBUG_PRINT("socket listening\n");
+#if DEBUG
+  printf("socket listening\n");
+#endif
 
   /* For logging peername
   int res;
@@ -210,22 +246,24 @@ int main(int argc, char *argv[]) {
     printf("new connection: %s\n",clientip);
     */
     
-
     /* Basic heuristic for timeout based on queue length.
        Minimum timeout 10s + another second for every 50
        connections on the queue. */
     i = connections->size;
     timeout.tv_sec = 10;
+    /* Need to check if i > 0 because size is racy */
     if (i > 0) timeout.tv_sec += i/50;
     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO,
 	       (void *)&timeout, sizeof(timeout));
-    DEBUG_PRINT("connection from %s, port %d\n",
-	        inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
-	        ntohs(clientaddr.sin_port));
-    DEBUG_PRINT("%d\n",connections->size);
+#if DEBUG
+    printf("connection from %s, port %d\n",
+           inet_ntop(AF_INET, &clientaddr.sin_addr, buf, sizeof(buf)),
+           ntohs(clientaddr.sin_port));
+    printf("%d\n",connections->size);
+#endif
     enqueue(connections,connfd);
   }
-
+  
   queue_destroy(connections);
   free(connections);
 }

@@ -1,3 +1,6 @@
+#ifndef __UTIL_H__
+#define __UTIL_H__
+
 /* System parameters */
 extern int PORT;
 #define BACKLOG     1024
@@ -13,4 +16,8 @@ extern const char *DOCUMENT_ROOT;
 
 /* Debugging */
 #define DEBUG 0
-#define DEBUG_PRINT if (DEBUG) printf
+#define DEBUG_QSIZE 0
+#define DEBUG_ENQ 0
+#define DEBUG_ERR 1
+
+#endif // __UTIL_H__
