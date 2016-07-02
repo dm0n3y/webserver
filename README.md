@@ -6,10 +6,7 @@ As the focus of this project was server performance rather than usability, howev
   supports enough of each protocol to serve [this static webpage](http://sysnet.cs.williams.edu/).
 The contents of this webpage in the subdirectory `resources`.
 
-`ab` tests indicate comparable performance to a Sysnet server (the server hosting the original webpage) 
-  on up to 600 concurrent requests at a time.
-Performance degrades (somewhat) gracefully on additional concurrent requests.
-See the subdirectory `writeup` for further details about implementation and performance.
+`ab` load tests distributed over 20 Amazon EC2 instances indicate comparable performance to an Apache server on up to 1200 concurrent connections.  A different architecture is necessary, however, for successful handling of additional connections.  See the subdirectory `writeup` for further details about implementation and performance.
 
 ## To run
 Run `make` in the project root directory, then run `server -port <portno>` with the port number of your choice.
